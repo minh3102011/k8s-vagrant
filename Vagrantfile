@@ -1,3 +1,4 @@
+=begin
 Vagrant.configure("2") do |config|
   # Cấu hình Workernode
   config.vm.define "Workernode" do |worker|
@@ -156,8 +157,8 @@ EOF
     SHELL
   end
 end
+=end
 
-=begin
   
 Vagrant.configure("2") do |config|
   # Hàm setup chung cho cả MasterNode & WorkerNode
@@ -169,6 +170,7 @@ Vagrant.configure("2") do |config|
       sudo apt update && sudo apt upgrade -y
       sudo swapoff -a
       sudo sed -i 's|^\(/swap.img.*\)|#\1|' /etc/fstab
+      echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
       sudo mount -a
       sudo tee /etc/modules-load.d/containerd.conf <<EOF
 overlay
@@ -182,10 +184,10 @@ net.bridge.bridge-nf-call-iptables = 1
 net.ipv4.ip_forward = 1
 EOF
       sudo sysctl --system
-      sudo apt install -y curl gnupg2 software-properties-common apt-transport-https ca-certificates
+      sudo apt-get install -y curl gnupg2 software-properties-common apt-transport-https ca-certificates
       sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/docker.gpg
       sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-      sudo apt update && sudo apt install -y docker.io
+      sudo apt-get update && sudo apt-get install -y docker.io
 
       # Cài cri-dockerd (chạy Docker với Kubernetes)
       wget https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.1/cri-dockerd_0.3.1.3-0.ubuntu-jammy_amd64.deb
@@ -196,7 +198,8 @@ EOF
       # Cấu hình containerd
       containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
       sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
-
+      sudo usermod -aG docker vagrant
+      newgrp docker
       # Cài đặt Helm
       curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
       chmod 700 get_helm.sh
@@ -209,6 +212,13 @@ EOF
       echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
       sudo apt-get update && sudo apt-get install -y kubelet kubeadm kubectl
       sudo apt-mark hold kubelet kubeadm kubectl
+      #cài đặt kubectl
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      chmod +x kubectl
+      mkdir -p ~/.local/bin
+      mv ./kubectl ~/.local/bin/kubectl
+      
     SHELL
   end
 
@@ -258,10 +268,11 @@ EOF
 
       # Khởi tạo Kubernetes
       sudo kubeadm init --cri-socket unix:///var/run/cri-dockerd.sock --pod-network-cidr=192.168.0.0/16 --control-plane-endpoint=k8s-master.ndbien.local | tee /home/vagrant/kubeadm-init.log
+      
       mkdir -p $HOME/.kube
       sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
       sudo chown $(id -u):$(id -g) $HOME/.kube/config
-
+      sudo scp /etc/kubernetes/admin.conf vagrant@k8s-worker:/home/vagrant/.kube/config
       # Cài đặt CNI (Calico hoặc Flannel)
       curl https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml -O
       curl https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml -O
@@ -269,4 +280,3 @@ EOF
   end
 end
 
-=end

