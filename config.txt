@@ -1,0 +1,114 @@
+# web
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-check-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-check
+  template:
+    metadata:
+      labels:
+        app: health-check
+    spec:
+      initContainers:
+      - name: set-docker-sock-permissions
+        image: busybox
+        command: ["chmod", "666", "/var/run/docker.sock"]
+        volumeMounts:
+        - name: containerd-sock-volume
+          mountPath: /var/run/docker.sock
+      containers:
+      - name: health-check
+        image: biladen/webserver  # Replace with your webserver image
+        resources:
+          limits:
+            memory: "100Mi"
+            cpu: "30m"
+        ports:
+        - containerPort: 80
+        env:
+        - name: MYSQL_HOST
+          value: "mysql-service"  # MySQL service name
+        - name: MYSQL_DATABASE
+          value: "idor"
+        - name: MYSQL_USER
+          value: "web"
+        - name: MYSQL_PASSWORD
+          value: "web@server123"
+        securityContext:
+          privileged: true  # If your container requires privileged access
+        volumeMounts:
+          - mountPath: /custom/docker/docker.sock
+            name: containerd-sock-volume
+      volumes:
+        - name: containerd-sock-volume
+          hostPath:
+            path: /var/run/docker.sock  # Gắn Docker socket từ host
+            type: Socket
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: health-check-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  selector:
+    app: health-check
+
+#ser
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: biladen/mysql
+        ports:
+        - containerPort: 3306
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "Checkpass@123123"
+        - name: MYSQL_DATABASE
+          value: "idor"
+        - name: MYSQL_USER
+          value: "web"
+        - name: MYSQL_PASSWORD
+          value: "web@server123"
+        volumeMounts:
+          - name: sql-volume
+            mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: sql-volume
+          hostPath:
+            path: /mnt/data/sql  # Path to your init SQL files
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+                                     
