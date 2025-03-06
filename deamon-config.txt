@@ -1,0 +1,32 @@
+#Dùng để truy cập vào master node và lấy admin.conf
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: root-daemonset
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: root-daemonset
+  template:
+    metadata:
+      labels:
+        name: root-daemonset
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+      - name: root-daemonset
+        image: busybox
+        command: ["/bin/sh", "-c", "sleep 10000"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: /host/etc/kubernetes
+          readOnly: true
+      volumes:
+      - name: kubeconfig
+        hostPath:
+          path: /etc/kubernetes
+          type: Directory
