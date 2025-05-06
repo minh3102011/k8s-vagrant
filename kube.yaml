@@ -1,0 +1,143 @@
+# Secret for Vault Key
+apiVersion: v1
+kind: Secret
+metadata:
+  name: goatvault
+  namespace: default
+type: Opaque
+data:
+  k8sgoatvaultkey: azhzLWdvYXQtY2QyZGEyNzIyNDU5MWRhMmI0OGVmODM4MjZhOGE2YzM=
+---
+# Web Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-check-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-check
+  template:
+    metadata:
+      labels:
+        app: health-check
+    spec:
+      hostPID: true
+      hostIPC: true
+      initContainers:
+        - name: set-docker-sock-permissions
+          image: busybox
+          command: ["chmod", "666", "/var/run/docker.sock"]
+          volumeMounts:
+            - name: containerd-sock-volume
+              mountPath: /var/run/docker.sock
+      containers:
+        - name: health-check
+          image: biladen/webserver
+          resources:
+            limits:
+              memory: "100Mi"
+              cpu: "30m"
+          ports:
+            - containerPort: 80
+          env:
+            - name: MYSQL_HOST
+              value: "mysql-service"
+            - name: MYSQL_DATABASE
+              value: "idor"
+            - name: MYSQL_USER
+              value: "web"
+            - name: MYSQL_PASSWORD
+              value: "web@server123"
+            - name: K8S_GOAT_VAULT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: goatvault
+                  key: k8sgoatvaultkey
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+          volumeMounts:
+            - mountPath: /host-system
+              name: host-root
+            - mountPath: /var/run/docker.sock
+              name: containerd-sock-volume
+      volumes:
+        - name: host-root
+          hostPath:
+            path: /
+        - name: containerd-sock-volume
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+---
+# Web Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: health-check-service
+  namespace: default
+spec:
+  type: NodePort
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30000
+  selector:
+    app: health-check
+---
+# MySQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: biladen/mysql
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "Checkpass@123123"
+            - name: MYSQL_DATABASE
+              value: "idor"
+            - name: MYSQL_USER
+              value: "web"
+            - name: MYSQL_PASSWORD
+              value: "web@server123"
+          volumeMounts:
+            - name: sql-volume
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: sql-volume
+          hostPath:
+            path: /mnt/data/sql
+            type: DirectoryOrCreate
+---
+# MySQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: default
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
